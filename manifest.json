@@ -1,7 +1,7 @@
 {
 	"manifest_version" : 2,
 
-	"name" : "Page Time Logger",
+	"name" : "Chrome Time Log",
 	"description" : "Record how long you spend on each webpage.",
 	"version" : "0.0.0.1",
 
