@@ -5,19 +5,26 @@
 	"description" : "Record how long you spend on each webpage.",
 	"version" : "0.0.0.1",
 
-	"background" :{
-		"scripts" : ["index.js"],
-		"persistent": false
+	"background" :
+	{
+		"scripts" : ["index.js"]
 	},
+	"content_scripts": [
+		{
+			"matches"  : ["http://*/*", "https://*/*"],
+			"js" : ["content.js"]
+		}
+	],
 	"browser_action" : {
 		"default_icon" : "clock.png",
 		"default_popup" : "index.html",
 		"default_title" : "Page Time"
 	},
 	"permissions" : [
+		"notifications",
 		"activeTab",
 		"https://ajax.googleapis.com/",
 		"tabs",
 		"storage"
 	]
-}
+} 

@@ -3,43 +3,50 @@
 var storageId = "Pages";
 var hostnameId = "PagesHostname";
 
-chrome.tabs.onActivated.addListener( function (activeTab)
-{		
-	chrome.tabs.query( {active: true, currentWindow: true }, function (tab) 
-	{ 
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    console.log(sender.tab ? "from a content script: " + sender.tab.url : "from the extension.");
+    if (request.intent === "store_time")
+    {
+    	savePages(request.url, request.start_time, request.ellapsed_time, request.off_page_time);
+    	sendResponse({success: "success!"});
 
-		var hostname = (new URL(tab[0].url)).hostname;
-		console.log(hostname)
-		chrome.storage.sync.get(null, function (Sync)
-		{
-			console.info(Sync)
-			if (Sync[storageId])
-			{
-				Pages = Sync[storageId];
-			}	else {
-				Pages = {};
-			}
+    } else if (request.intent === "notification") {
+    	chrome.notifications.create('overTime',
+    	{
+    		type : request.TemplateType,
+    		iconUrl : request.iconUrl,
+    		title : request.title,
+    		message: request.message
+    	},
+    	function (notificationId) { console.log("notify")} );
+    	sendResponse({success: "success!"});
 
-			if (Sync[hostnameId])
+    } else if (request.intent === "get_time") {
+  		chrome.storage.sync.get(storageId, function (p)
 			{
-				var previousHostname = Sync[hostnameId];
-				if (previousHostname != hostname)
+				var hostname = request.url
+				var total_day = 0;
+				if (p.Pages[hostname])
 				{
-					updatePagesPreviousHostname(Pages, previousHostname);
-					updatePagesHostname(Pages, hostname);
-					savePages(Pages);
-					saveHostname(hostname);
-				} else {
-					console.log("haven't changed domains, don't update anything")
-				}
-			} else {
-				updatePagesHostname(Pages, hostname);
-				savePages(Pages)
-				saveHostname(hostname);
-			}
-		});
-	});	
-});
+					console.info(p.Pages[hostname]);
+					timeObjs = p.Pages[hostname];
+					// iterate over each time page open / close
+					timeObjs.forEach(function (timeObj)
+					{
+						var beginToday = new Date();
+						beginToday.setHours(0,0,0,0);
+						if (timeObj.start_time > +beginToday)
+						{
+							var ellapsed_time = timeObj.ellapsed_time;
+							total_day += ellapsed_time;
+						}
+					});	
+				} 
+			});
+    }
+  }
+);
 
 chrome.storage.onChanged.addListener(function (changes, namespace)
 {
@@ -54,66 +61,66 @@ chrome.storage.onChanged.addListener(function (changes, namespace)
                 storageChange.newValue);
 		console.info(storageChange);
 	}
+	console.info("last error: ", chrome.runtime.lastError);
 });
 
-function saveHostname (hostname)
+function savePages (url, start_time, ellapsed_time, off_page_time)
 {
-	var HostnameSave = {};
-	HostnameSave[hostnameId] = hostname;
-	chrome.storage.sync.set(HostnameSave, function () 
+	var hostname = (new URL(url)).hostname;
+	// create the object to pass into each key of  Pages obj.
+	var to_insert = { start_time: start_time, ellapsed_time: ellapsed_time, off_page_time: off_page_time };
+	var Pages = chrome.storage.sync.get(storageId, function (p)
 	{
-		console.log("successful update")
-	})
-}
-function savePages (Pages)
-{
-	var Timestamps = {};
-	Timestamps[storageId] = Pages;
-	chrome.storage.sync.set(Timestamps, function () 
-	{
-		console.log("successful update")
+		if (p.Pages)
+		{
+			setTimeData(p.Pages, hostname, to_insert);	
+		} else {
+			var PageTimeLog = {};
+			PageTimeLog[storageId] = {};
+			chrome.storage.sync.set(PageTimeLog, function () 
+				{ 
+					console.log("successfully instantiate object in sync db.");
+					var Pages = chrome.storage.sync.get(storageId, function (p) 
+					{
+						console.info(p);
+						if (!p.Pages) { throw "Pages should have JUST been instantiated" };
+						setTimeData(p.Pages, hostname, to_insert);
+					});
+				});
+		}
 	})
 }
 
-
-function updatePagesHostname (Pages, hostname)
+// Take in the obj (in sync db), keyname, and value to be pushed into arr
+function setTimeData (Pages, hostname, hostname_arr_var)
 {
-	console.log("updatePagesHostname: " + hostname)
-	var date = new Date();
 	if ((Object.keys(Pages)).indexOf(hostname) > -1)
 	{
+		// check to make sure the value of key hostname is an arr
 		if (Pages[hostname].constructor === Array)
 		{
-			var obj = { startTime : +date }
-			console.info( "object to put in hash is ", +date);
-			Pages[hostname].push(obj)
+			// push the new values into hostname
+			Pages[hostname].push(hostname_arr_var)
+			insertIntoSync(Pages)
 		} else {
-			err = "value for keys in Pages should be Arrays"
+			err = "hostname key should have val of type arr"
 			throw err
 		}
 	} else {
-		// If no key for that host, make one and add Array
-		var obj = { startTime : +date }
-		Pages[hostname] = [ obj ] 
+		console.log("New hostname. Add key " + hostname + " with Array value w/ one entry, " + hostname_arr_var);
+		Pages[hostname] = [hostname_arr_var];
+		insertIntoSync(Pages);
 	}
 }
 
-function updatePagesPreviousHostname (Pages, hostname)
+function insertIntoSync(Pages)
 {
-	var date = new Date();
-	console.log("updatePagesPreviousHostname " + hostname)
-	if (Pages[hostname])
+	var PageTimeLog = {};
+	PageTimeLog[storageId] = Pages;
+	chrome.storage.sync.set(PageTimeLog, function () 
 	{
-		if (Pages[hostname].constructor === Array)
-		{
-			Pages[hostname][Pages[hostname].length-1]['endTime'] = +date;
-		} else {
-			err = "value for keys in Pages should be Arrays"
-			throw err
-		}
-	} else {
-		// If no key for that host, make one and add Array
-		err = "No key for " + hostname + ", prev page didn't get logged."
-		throw err
-	}
+		console.log('success');
+	});
 }
+
+

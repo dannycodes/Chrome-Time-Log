@@ -1,13 +1,14 @@
 var storageId = "Pages";
+var bkg = chrome.extension.getBackgroundPage();
+
 document.addEventListener("DOMContentLoaded", function (e)
 {
 	// Grab their data from storage
 	chrome.storage.sync.get("Pages", function (p)
 	{
-		var rows = []
-
+		var rows = [];
 		var table = document.getElementById('table');
-		Pages = p[storageId]
+		Pages = p[storageId];
 		// iterate over all the sites they've been to
 		Object.keys(Pages).forEach( function (key)
 		{
@@ -20,20 +21,14 @@ document.addEventListener("DOMContentLoaded", function (e)
 				var beginToday = new Date();
 				beginToday.setHours(0,0,0,0);
 
-				if (timeObj['startTime'] >  beginToday)
-				{
-					if (timeObj['endTime'])
-					{
-						var start = timeObj['startTime'];
-						var end = timeObj['endTime'];
-						total_day += Math.abs(start-end);
-					}
-				}
-			});		
-			var ellapsed_time = convertToRealTime(total_day);
-			rows.push( {time: total_day, timestamp : ellapsed_time, site: key });
+				var ellapsed_time = timeObj.ellapsed_time;
+				total_day += ellapsed_time;
+			});	
+			console.log(total_day);
+			var human_readable_time = convertToRealTime(total_day);
+			rows.push( {time: total_day, timestamp : human_readable_time, site: key });
 
-			console.log(key + " for a total time of " + ellapsed_time);
+			console.log(key + " for a total time of " + human_readable_time);
 		})
 		rows.sort(function (a, b)
 		{
@@ -54,12 +49,12 @@ document.addEventListener("DOMContentLoaded", function (e)
 	})
 })
 
-function convertToRealTime (total_day)
+function convertToRealTime (sec)
 {
-	sec = parseInt(total_day / 1000)
 	if (sec < 60)
 	{
 		text = sec.toString() + " seconds.";
+		console.log(text);
 		return text
 	} else if (sec < 3600) {
 		mins = parseInt(sec / 60)
